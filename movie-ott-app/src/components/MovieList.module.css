@@ -1,0 +1,44 @@
+.movieListContainer {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.title {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.movieGrid {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.movieCard {
+    width: 200px;
+    background-color: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 0.2s;
+}
+
+.movieCard:hover {
+    transform: translateY{-5px};
+} 
+
+.movieCard:img{
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+}
+
+.movieCard h3 {
+    padding: 10px;
+    margin: 0;
+    text-align: center;
+}
+
+

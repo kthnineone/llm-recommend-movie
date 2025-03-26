@@ -1,0 +1,31 @@
+/* flex는 가로 일 수도 있다. */
+.searchContainer {
+    width: 100%;
+    display: flex; 
+    justify-content: center;
+    padding: 20px 0;
+}
+/*
+.searchContainer {
+    width: 100%;
+    display: inline-block; 
+    justify-content: center;
+    padding: 20px 0;
+}
+*/
+
+.searchInput {
+    width: 80%;
+    max-width: 500px;
+    padding: 12px 20px;
+    border: 2px solid #646cff;
+    border-radius: 25px;
+    font-size: 16px;
+    background-color: #1a1a1a;
+    color: white;
+}
+
+.searchInput:focus {
+    outline: none;
+    border-color: #535bf2;
+}

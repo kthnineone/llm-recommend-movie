@@ -1,0 +1,51 @@
+/* flex는 가로 일 수도 있다. */
+.searchContainer {
+    width: 100%;
+    display: flex; 
+    justify-content: center;
+    padding: 10px;
+    align-items: center; /* 두 개의 아이템을 정렬한다 */
+}
+
+/*
+아래 하드 코딩을 Tailwind CSS로 변경  
+"px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+*/
+.searchButton {
+    min-width: 80px;
+    height: 40px;
+    white-space: nowrap; /* 줄 바꿈 방지 */
+    padding: 8px 4px; /* py-2 px-6 */
+    background-color: #fffff0; /* ivory */
+    color: black; /* text black */
+    border-radius: 4px; /* rounded-lg (일반적으로 8px) */
+    transition: background-color 0.15s ease-in-out; /* transition-colors */
+  }
+  
+  .searchButton:hover {
+    border-color: #3b82f6; /* hover:bg-blue-600 */
+  }
+
+  .popularContainer{
+    width: 140%;
+    padding: 4px;
+    display: flex;
+    background-color: #fffff0;
+    border-radius: 4px;
+    overflow: auto;
+    flex-shrink: 1;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .recommendContainer{
+    width: 140%;
+    padding: 4px;
+    display: flex;
+    background-color: #fffff0;
+    border-radius: 4px;
+    overflow: auto;
+    flex-shrink: 1;
+    align-items: center;
+    justify-content: space-between;
+  }
