@@ -41,18 +41,23 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, userId = 230213 }) => {
 
               const timestamp = new Date();
               const isoTimestampString = timestamp.toISOString();
+              const unixTimeInSeconds = Math.floor(timestamp.getTime() / 1000);
+
+              const userFloatRating = userRating + 0.0; // Convert to float
               
               console.log(timestamp);
               console.log(isoTimestampString);
+              console.log(unixTimeInSeconds);
               console.log(userId);
               console.log(movie.movieId);
               console.log(userRating);
+              console.log(userFloatRating);
 
               const jsonBody = {
                 userId: userId,
                 movieId: movie.movieId,
-                rating: userRating,
-                timestamp: isoTimestampString,
+                rating: userFloatRating,
+                timestamp: unixTimeInSeconds,
               };
 
               const response = await fetch(`${API_URL}/api/ratings`, {

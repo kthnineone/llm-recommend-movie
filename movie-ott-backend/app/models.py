@@ -5,6 +5,57 @@ async와 await가 가능하다.
 반면에 database는 비동기식이다. 
 '''
 
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    mapped_column,
+    Mapped
+)
+
+class Base(DeclarativeBase):
+    pass
+
+class Users(Base):
+    __tablename__ = "users"
+
+    userId: Mapped[int] = mapped_column(primary_key=True)
+    gender: Mapped[str]
+    age: Mapped[int]
+    occupation: Mapped[str]
+    zipCode: Mapped[str]
+
+class Movies(Base):
+    __tablename__ = "movies"
+
+    movieId: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str]
+    genre: Mapped[str]
+
+class Ratings(Base):
+    __tablename__ = "ratings"
+
+    userId: Mapped[int] = mapped_column(ForeignKey("users.userId"), primary_key=True)
+    movieId: Mapped[int] = mapped_column(ForeignKey("movies.movieId"), primary_key=True)
+    rating: Mapped[float]
+    timestamp: Mapped[int]
+
+
+class Recommendations(Base):
+    __tablename__ = "recommendations"
+
+    userId: Mapped[int] = mapped_column(ForeignKey("users.userId"), primary_key=True)
+    movieId: Mapped[int] = mapped_column(ForeignKey("movies.movieId"), primary_key=True)
+    meanRating: Mapped[float]
+    timestamp: Mapped[str]
+    recommenderId: Mapped[int] = mapped_column(ForeignKey("recommenders.id"))
+    recommenderName: Mapped[str] = mapped_column(ForeignKey("recommenders.model_name"))
+    feedback: Mapped[str] = mapped_column(nullable=True)  # feedback은 선택 사항이므로 nullable=True 설정
+
+
+
+
+'''
+# Core 방식 테이블 선언 
 from sqlalchemy import Table, Column, Integer, String, Float, ForeignKey
 #from app.database import metadata
 from database import metadata
@@ -58,3 +109,4 @@ recommendations = Table(
     Column("recommenderName", String, ForeignKey("recommenders.model_name")),
 )
 
+'''

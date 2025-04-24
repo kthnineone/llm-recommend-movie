@@ -3,20 +3,17 @@
 from typing import List, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field
-#from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
-from sqlalchemy import Column, Integer, String, DateTime, UniqueConstraint
+from sqlalchemy import select, desc, func, insert, delete
+from sqlalchemy.orm import aliased, Session
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.declarative import declarative_base
-#from app.database import database, engine, metadata
-#from app.models import movies, users, ratings
-from database import engine, metadata, database, async_session, init_db
-from models import movies, users, ratings, recommendations
+from database import async_session_maker
+from models import Users, Movies, Ratings, Recommendations
+from schemas import RatingBase
 import schemas
-from llm_recommend import recommend_func
-from sqlalchemy.orm import aliased
+from llm_recommend import recommend_func, manager
 
 
 '''SQLAlchemy의 ORM 방식 사용  
@@ -45,20 +42,23 @@ app.add_middleware(
 
 
 
+# 비동기 데이터베이스 의존성
+async def get_async_db():
+    async with async_session_maker() as session:
+        yield session
+
+'''
 @app.on_event("startup")
 async def startup_event():
     try:
-        await init_db()  # 데이터베이스 초기화
-        await database.connect()  # 데이터베이스 연결
-        print("Database connection established")
+        async with async_session_maker() as db:
+            await manager.initialize_candidates(db)
+        print("Database connection established and movie candidates initialized")
     except Exception as e:
         print(f"Startup error: {str(e)}")
         raise e
+'''
 
-# 종료 시 연결 해제
-@app.on_event("shutdown")
-async def shutdown_event():
-    await database.disconnect()
     
 @app.get("/")
 def read_root():
@@ -66,21 +66,30 @@ def read_root():
 
 
 @app.get("/api/search", response_model=List[dict])
-async def search_movies(query: str):
+async def search_movies(query: str, db: AsyncSession = Depends(get_async_db)):
     if not query:
         raise HTTPException(status_code=400, detail="검색어를 입력해주세요")
     
     try:
         # ILIKE를 사용하여 대소문자 구분 없이 검색
         search_term = f"%{query}%"
-        query = movies.select().where(
-            movies.c.title.ilike(search_term) |  # 제목 검색
-            movies.c.genre.ilike(search_term)    # 장르 검색
+        query = select(Movies).select_from(Movies).where(
+            Movies.title.ilike(search_term) |  # 제목 검색
+            Movies.genre.ilike(search_term)    # 장르 검색
         )
         
-        results = await database.fetch_all(query)
+        results = await db.execute(query)
+        movies = results.scalars().all()
+        print(f"movies: {movies}")
         # Record 객체를 딕셔너리로 변환
-        results_as_dict = [dict(row) for row in results]
+        results_as_dict = []
+        for movie in movies:
+            movie_dict = {
+                "movieId": movie.movieId,
+                "title": movie.title,
+                "genre": movie.genre
+            }
+            results_as_dict.append(movie_dict)
         
         if not results_as_dict:
             return [] # 없으면 빈칸 리턴 
@@ -98,17 +107,17 @@ class UserId(BaseModel):
 from llm_recommend import get_rating_history, fill_template, chain, get_movie_info, insert_recommend
 
 @app.post('/api/rating_history')
-async def rate_history(user_id: UserId):
+async def rate_history(user_id: UserId, db: AsyncSession = Depends(get_async_db)):
     return await get_rating_history(user_id.userId)
 
 
 @app.post('/api/recommend')
-async def create_recommend(user_id: UserId):
-    return await recommend_func(user_id)
+async def create_recommend(user_id: UserId, db: AsyncSession = Depends(get_async_db)):
+    return await recommend_func(user_id, db)
 
 
-@app.get('/api/recommended')
-async def get_recommend(userId: str):
+@app.get('/api/recommended', response_model=List[dict])
+async def get_recommend(userId: str, db: AsyncSession = Depends(get_async_db)):
     if not userId:
         raise HTTPException(status_code=400, detail="검색어를 입력해주세요")
     
@@ -120,22 +129,45 @@ async def get_recommend(userId: str):
         아래 에러가 발생한다.
         Search error: Neither 'Column' object nor 'Comparator' object has an attribute 'mapper'
         아래 코드가 올바른 코드 '''
-        rating_alias = recommendations.c.meanRating.label("rating")
+        rating_alias = Recommendations.meanRating.label("rating")
+
+        # CTE 정의
+        recommended_movies_cte = (
+            select(Recommendations.movieId, Recommendations.meanRating.label("rating"))
+            .select_from(Recommendations)
+            .where(Recommendations.userId == userId) # userId로 필터링
+            .cte("recommended_movies")
+        )
 
         query = (select(
-                   movies.c.movieId,
-                   movies.c.title,
+                   Movies.movieId,
+                   Movies.title,
                    rating_alias, # 평균 평점 컬럼 추가 
-                   movies.c.genre
+                   Movies.genre
                    )
-            .select_from(recommendations)
-            .join(movies, recommendations.c.movieId == movies.c.movieId, isouter=True)
-            .where(recommendations.c.userId == userId)  # 필터링 조건 추가
+            .select_from(Movies)
+            .join(recommended_movies_cte, Movies.movieId == recommended_movies_cte.c.movieId, isouter=False)
         )
         
-        results = await database.fetch_all(query)
+        results = await db.execute(query)
+        movies = results.all()
+        '''
+        쿼리 결과를 가져올 때 results.scalars().all()을 사용하면 
+        선택한 컬럼 중 첫 번째 컬럼의 값들만 스칼라 형태로 리스트에 담기게 됩니다. 
+        현재 select 절의 순서는 Movies.movieId, Movies.title, rating_alias, Movies.genre 이므로, 
+        results.scalars().all()은 Movies.movieId의 리스트를 반환할 가능성이 높습니다.
+        '''
+        #print(f"movies: {movies}")
         # Record 객체를 딕셔너리로 변환
-        results_as_dict = [dict(row) for row in results]
+        results_as_dict = []
+        for movie in movies:
+            movie_dict = {
+                "movieId": movie.movieId,
+                "title": movie.title,
+                "genre": movie.genre
+            }
+            results_as_dict.append(movie_dict)
+        print(f"recommended movies result dict shaped: {results_as_dict}")
         
         if not results_as_dict:
             return [] # 없으면 빈칸 리턴 
@@ -148,17 +180,8 @@ async def get_recommend(userId: str):
     
 
 
-
-class Rating(BaseModel):
-    userId: int
-    movieId: int
-    rating: float #int
-    #timestamp: datetime = Field(default_factory=datetime.now) #기본값 설정 
-    timestamp: str
-
-
 @app.post('/api/test')
-async def crate_multiple(rating: Rating):
+async def crate_multiple(rating: RatingBase):
     try:
         result = rating.rating * 2
         return {'message': 'multiplication successfully',
@@ -170,7 +193,7 @@ async def crate_multiple(rating: Rating):
 
 
 @app.post("/api/ratings")
-async def create_rating(rating: Rating):
+async def create_rating(rating: RatingBase, db: AsyncSession = Depends(get_async_db)):
     '''
     if not rating:
         raise HTTPException(status_code=404, detail='No rating object')
@@ -178,14 +201,16 @@ async def create_rating(rating: Rating):
         raise HTTPException(status_code=200, detail='Right object')
     '''
     try:
-        query = ratings.insert().values(
+        query = insert(Ratings).values(
             userId=rating.userId,
             movieId=rating.movieId,
             rating=rating.rating,
             timestamp=rating.timestamp
         )
-        await database.execute(query)
+        await db.execute(query)
+        await db.commit()
         return {"message": "Rating added successfully"}
     except Exception as e:
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
