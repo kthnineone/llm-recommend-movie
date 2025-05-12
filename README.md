@@ -5,6 +5,8 @@
 + FastAPI를 사용해 여러가지 GET과 POST 구현  
 + ORM style SQLAlchemy 적용 
 
+![대표이미지](https://github.com/kthnineone/llm-recommend-movie/blob/main/images/ratingCard.PNG)
+
 ## 기술  
 
 **Frontend**  
